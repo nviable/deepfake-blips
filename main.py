@@ -1,3 +1,4 @@
+#%%
 from datetime import datetime
 import os,cv2
 #from cv2 import getRotationMatrix2D, warpAffine,getAffineTransform,resize,imread,BORDER_REFLECT
@@ -6,12 +7,14 @@ import numpy as np
 from keras.applications.vgg16 import VGG16
 from keras.callbacks import ProgbarLogger, EarlyStopping, ModelCheckpoint, TensorBoard
 from keras.models import Model, Sequential
-from keras.layers import Input, Convolution2D, MaxPooling2D, Conv2DTranspose, Conv2D, concatenate, Dense, Conv1D, TimeDistributed, LSTM, Flatten
+from keras.layers import Input, Convolution2D, MaxPooling2D, Conv2DTranspose, Conv2D, concatenate, Dense, Conv1D, TimeDistributed, LSTM, Flatten, Bidirectional, BatchNormalization
 from keras.layers.core import Reshape, Activation, Dropout
 from keras.preprocessing.image import *
 from keras.optimizers import SGD
 from dataloader import BlipDatasetLoader
+from keras.backend import expand_dims
 
+#%%
 time_window = 10
 video_w = 512
 video_h = 384
@@ -22,50 +25,130 @@ audio_c = 2
 
 n_epochs = 5
 
-G =  BlipDatasetLoader(16)
+G =  BlipDatasetLoader(16, frames=time_window)
 train_generator = G.gen()
 validation_generator = G.gen(False)
 
+#%%
 '''
 Model Architecture
 using Keras functional API
 '''
+# first input model
 
-# RGB CNN
-inputs_rgb = Input(shape=(time_window, 384, 512, 3))
-# keras.applications.vgg16.VGG16(include_top=True, weights='imagenet', input_tensor=None, input_shape=None, pooling=None, classes=1000)
-vgg_model_rgb = TimeDistributed(VGG16(weights='imagenet', include_top=False))
-conv_model_rgb = vgg_model_rgb(inputs_rgb)
-conv_model_rgb = TimeDistributed(Flatten())(conv_model_rgb)
-dense_rgb = TimeDistributed(Dense(512, activation='relu'))(conv_model_rgb)
-# dropout_rgb = Dropout(0.2)(conv_model_rgb)
+input_rgb = Input(shape=(time_window, 384, 512, 3))
+'''
+input_rgb_norm = BatchNormalization(axis=-1)(input_rgb)
+conv11a = Conv2D(32, kernel_size=5, padding='same', name="conv11a")(input_rgb)
+conv11a = Activation('relu')(conv11a)
+conv11b = Conv2D(32, kernel_size=5, padding='same', strides=(2,2), name="conv11b")(conv11a)
+conv11b_b = BatchNormalization()(conv11b)
+conv11b_a = Activation('relu')(conv11b_b)
+conv11b_d = Dropout(0.2)(conv11b_a)
+pool11 = MaxPooling2D(pool_size=(3, 3), name="pool11")(conv11b_d)
+conv12a = Conv2D(64, kernel_size=3, padding='same', name="conv12a")(pool11)
+conv12a = Activation('relu')(conv12a)
+conv12b = Conv2D(64, kernel_size=3, padding='same', strides=(2,2), name="conv12b")(conv12a)
+conv12b_b = BatchNormalization()(conv12b)
+conv12b_a = Activation('relu')(conv12b_b)
+conv12b_d = Dropout(0.2)(conv12b_a)
+pool12 = MaxPooling2D(pool_size=(2, 2), name="pool12")(conv12b_d)
+conv13a = Conv2D(128, kernel_size=3, padding='same', name="conv13a")(pool12)
+conv13a = Activation('relu')(conv13a)
+conv13b = Conv2D(128, kernel_size=3, padding='same', strides=(2,2), name="conv13b")(conv13a)
+conv13b_b = BatchNormalization()(conv13b)
+conv13b_a = Activation('relu')(conv13b_b)
+conv13b_d = Dropout(0.2)(conv13b_a)
+pool13 = MaxPooling2D(pool_size=(2, 2), name="pool13")(conv12b_d)
+conv14a = Conv2D(256, kernel_size=3, padding='same', name="conv14a")(pool13)
+conv14a = Activation('relu')(conv14a)
+conv14b = Conv2D(256, kernel_size=3, padding='same', strides=(2,2), name="conv14b")(conv14a)
+conv14b_b = BatchNormalization()(conv14b)
+conv14b_a = Activation('relu')(conv14b_b)
+conv14b_d = Dropout(0.2)(conv14b_a)
+pool14 = MaxPooling2D(pool_size=(2, 2), name="pool14")(conv12b_d)
+conv15a = Conv2D(256, kernel_size=3, padding='same', name="conv15a")(pool14)
+conv15a = Activation('relu')(conv15a)
+conv15b = Conv2D(256, kernel_size=3, padding='same', strides=(2,2), name="conv15b")(conv15a)
+conv15b_b = BatchNormalization()(conv15b)
+conv15b_a = Activation('relu')(conv15b_b)
+conv15b_d = Dropout(0.2)(conv15b_a)
+pool15 = MaxPooling2D(pool_size=(2, 2), name="pool15")(conv12b_d)
+conv16a = Conv2D(256, kernel_size=3, padding='same', name="conv16a")(pool15)
+conv16a = Activation('relu')(conv16a)
+conv16b = Conv2D(256, kernel_size=3, padding='same', strides=(2,2), name="conv16b")(conv16a)
+conv16b = Activation('relu')(conv16b)
+pool16 = MaxPooling2D(pool_size=(2, 2), name="pool16")(conv12b)
+conv17a = Conv2D(256, kernel_size=3, padding='same', name="conv17a")(pool16)
+conv17a = Activation('relu')(conv17a)
+conv17b = Conv2D(256, kernel_size=3, padding='same', strides=(2,2), name="conv17b")(conv17a)
+conv17b = Activation('relu')(conv17b)
+pool17 = MaxPooling2D(pool_size=(2, 2), name="pool17")(conv12b)
+flat1 = Flatten()(pool17)
+'''
+conv11 = TimeDistributed( Conv2D(32, kernel_size=4, activation='relu'))(input_rgb)
+pool11 = TimeDistributed( MaxPooling2D(pool_size=(2, 2)) )(conv11)
+conv12 = TimeDistributed( Conv2D(16, kernel_size=4, activation='relu'))(pool11)
+pool12 = TimeDistributed( MaxPooling2D(pool_size=(2, 2)) )(conv12)
+flat1 = TimeDistributed( Flatten() )(pool12)
 
-# STFT CNN
-inputs_stft = Input(shape=(time_window, 1025, 2, 1))
-conv_model_stft = TimeDistributed(Conv2D(4, kernel_size=(2,2), strides=(1,1), padding='same', activation='tanh', data_format='channels_last'))(inputs_stft)
-conv_model_stft = TimeDistributed(Conv2D(8, kernel_size=(2,2), strides=(1,1), activation='tanh', data_format='channels_last'))(conv_model_stft)
-conv_model_stft = TimeDistributed(Flatten())(conv_model_stft)
-dense_stft = Dense(64, activation='relu')(conv_model_stft)
+lstm1 = LSTM(32, return_sequences=True)(flat1)
 
-# concat 
-merged = concatenate([dense_rgb, dense_stft], axis=-1)
-dense_merged = TimeDistributed(Dense(256, activation='relu'))(merged)
-merged_lstm = LSTM(128, return_sequences=True)
-dense_merged = TimeDistributed(Dense(32, activation='relu'))(merged_lstm)
-out = TimeDistributed(Dense(32, activation='relu'))(dense_merged)
-# out = Activation('softmax')(dense_merged)
+# second input model
+input_stft = Input(shape=(time_window, 25, 41, 2))
+'''
+conv21a = Conv2D(16, kernel_size=3, padding='same', name="conv21a")(input_stft)
+conv21a = Activation('relu')(conv21a)
+conv21b = Conv2D(16, kernel_size=3, padding='same', name="conv21b")(conv21a)
+conv21b_b = BatchNormalization()(conv21b)
+conv21b_a = Activation('relu')(conv21b_b)
+conv21b_d = Dropout(0.2)(conv21b_a)
+pool21 = MaxPooling2D(pool_size=(2, 2), name="pool21")(conv21b_d)
+conv22a = Conv2D(32, kernel_size=3, padding='same', name="conv22a")(pool21)
+conv22a = Activation('relu')(conv22a)
+conv22b = Conv2D(32, kernel_size=3, padding='same', name="conv22b")(conv22a)
+conv22b_b = BatchNormalization()(conv22b)
+conv22b_a = Activation('relu')(conv22b_b)
+conv22b_d = Dropout(0.2)(conv22b_a)
+pool22 = MaxPooling2D(pool_size=(2, 2), name="pool22")(conv22b_d)
+conv23a = Conv2D(32, kernel_size=3, padding='same', name="conv23a")(pool22)
+conv23a = Activation('relu')(conv23a)
+conv23b = Conv2D(32, kernel_size=3, padding='same', name="conv23b")(conv23a)
+conv23b_b = BatchNormalization()(conv23b)
+conv23b_a = Activation('relu')(conv23b_b)
+conv23b_d = Dropout(0.2)(conv23b_a)
+pool23 = MaxPooling2D(pool_size=(2, 2), name="pool23")(conv23b_d)
+'''
 
-# welp! i dont know what i'm doing yay!
+'''
+conv21 = TimeDistributed( Conv2D(32, kernel_size=4, activation='relu') )(input_rgb)
+pool21 = TimeDistributed( MaxPooling2D(pool_size=(2, 2)) )(conv21)
+conv22 = TimeDistributed( Conv2D(16, kernel_size=4, activation='relu') )(pool21)
+pool22 = TimeDistributed( MaxPooling2D(pool_size=(2, 2)) )(conv22)
+flat2 = TimeDistributed( Flatten() )(pool22)
 
-model = Model(inputs=[inputs_rgb, inputs_stft], outputs=[out])
+# merge input models
+merge = concatenate([flat1, flat2]) # None, 186512
+'''
+# interpretation model
 
-print('Compiling Model')
+flatten_lstm = Flatten() (lstm1)
+hidden1 = Dense(16, activation='relu')(flatten_lstm)
+hidden2 = Dense(16, activation='relu')(hidden1)
+output = Dense(1, activation='softmax')(flatten_lstm)
+
+# model = Model(inputs=[input_rgb, input_stft], outputs=output)
+model = Model(inputs=input_rgb, outputs=output)
+
+# summarize layers
+print(model.summary())
+# exit()
 
 model.compile(optimizer=SGD(lr=0.008, decay=1e-6, momentum=0.9, nesterov=True),
-              loss='hinge',
+              loss='mean_squared_error',
               metrics=['accuracy'])
 
-model.fit_generator(train_generator, steps_per_epoch=10, verbose=1, epochs=n_epochs, validation_data=validation_generator, validation_steps=10)
+model.fit_generator(train_generator, steps_per_epoch=10, verbose=1, epochs=n_epochs, validation_data=validation_generator, validation_steps=10, use_multiprocessing=True)
 
 print(model.evaluate_generator(validation_generator, steps=100))
 
