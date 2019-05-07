@@ -13,6 +13,8 @@ from keras.preprocessing.image import *
 from keras.optimizers import SGD
 from dataloader import BlipDatasetLoader
 from keras.backend import expand_dims, shape
+from keras.utils import plot_model
+import matplotlib.pyplot as plt
 
 #%%
 time_window = 2
@@ -27,7 +29,8 @@ n_epochs = 5
 
 G =  BlipDatasetLoader(16, frames=time_window)
 train_generator = G.gen()
-validation_generator = G.gen(False)
+test_generator = G.gen(False)
+validation_generator = G.gen(False, True)
 
 #%%
 '''
@@ -144,8 +147,28 @@ model.compile(optimizer=SGD(lr=0.008, decay=1e-6, momentum=0.9, nesterov=True),
               loss='mean_squared_error',
               metrics=['accuracy'])
 
-model.fit_generator(train_generator, steps_per_epoch=100, verbose=1, epochs=n_epochs, validation_data=validation_generator, validation_steps=10, use_multiprocessing=True)
+history = model.fit_generator(train_generator, steps_per_epoch=100, verbose=1, epochs=n_epochs, validation_data=validation_generator, validation_steps=10, use_multiprocessing=True)
 
-print(model.evaluate_generator(validation_generator, steps=100))
+print(model.evaluate_generator(test_generator, steps=100))
 
-model.save('test_model')
+plot_model(model, to_file='model.png')
+
+# Plot training & validation accuracy values
+plt.plot(history.history['acc'])
+plt.plot(history.history['val_acc'])
+plt.title('Model accuracy')
+plt.ylabel('Accuracy')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Test'], loc='upper left')
+plt.savefig("accuracy.png")
+
+# Plot training & validation loss values
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('Model loss')
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Test'], loc='upper left')
+plt.savefig("loss.png")
+
+model.save('final_model')

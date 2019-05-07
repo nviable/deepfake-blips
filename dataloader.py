@@ -17,17 +17,22 @@ class BlipDatasetLoader:
     # batch Xa(batch_size, frames, 1025, 2)
     # batch Y(batch_size, frames, 1)
     '''
-    def __init__(self, batch_size=16, frames=10, test=0.25):
+    def __init__(self, batch_size=16, frames=10, test=0.25, val=0.25):
         super().__init__()
         self.batch_size = batch_size
         self.frames = frames
         p = shuffle(list(Path('./data/picklejar').glob('*.pickle')))
-        t_size = math.floor(len(p) * (1-test))
-        self.train = p[:t_size]
-        self.test = p[t_size:]
+        tr_size = math.floor(len(p) * (1 - (test + val)))
+        te_size = tr_size + math.floor(len(p) * test)
+        self.train = p[:tr_size]
+        self.test = p[tr_size:te_size]
+        self.val = p[te_size:]
+        print("="*10)
+        print("Data split into {} | {} | {}".format( len(self.train), len(self.test), len(self.val) ))
+        print("="*10)
 
-    def gen(self, train=True):
-        t_gen = self.get_timewindow(train)
+    def gen(self, train=True, val=False):
+        t_gen = self.get_timewindow(train, val)
         while True:
             batch_Xa, batch_Xv, batch_Y = [],[], []
 
@@ -45,9 +50,15 @@ class BlipDatasetLoader:
             # batch Xa(batch_size, frames, 1025, 2)
             # batch Y(batch_size, frames, 1)
 
-    def get_timewindow(self, train=True):
+    def get_timewindow(self, train=True, val=False):
         Xa_b, Xv_b, Y = [],[],[]
-        for f_name in self.train if train else self.test:
+        data_pipe = self.train
+        if not train:
+            if not val:
+                data_pipe = self.test
+            else:
+                data_pipe = self.val
+        for f_name in data_pipe:
             f = open(f_name, 'rb')
             p = pickle.load(f)
             # print('Opened ', f_name)
