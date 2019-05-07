@@ -28,9 +28,9 @@ audio_c = 2
 n_epochs = 5
 
 G =  BlipDatasetLoader(16, frames=time_window)
-train_generator = G.gen()
-test_generator = G.gen(False)
-validation_generator = G.gen(False, True)
+train_generator = G.gen(no_timesteps=True)
+test_generator = G.gen(False, no_timesteps=True)
+validation_generator = G.gen(False, True, no_timesteps=True)
 
 #%%
 '''
@@ -39,7 +39,7 @@ using Keras functional API
 '''
 # first input model
 
-input_rgb = Input(shape=(time_window, 384, 512, 3))
+input_rgb = Input(shape=(384, 512, 3))
 '''
     input_rgb_norm = BatchNormalization(axis=-1)(input_rgb)
     conv11a = Conv2D(32, kernel_size=5, padding='same', name="conv11a")(input_rgb)
@@ -89,14 +89,14 @@ input_rgb = Input(shape=(time_window, 384, 512, 3))
     pool17 = MaxPooling2D(pool_size=(2, 2), name="pool17")(conv12b)
     flat1 = Flatten()(pool17)
 '''
-conv11 = TimeDistributed( Conv2D(16, kernel_size=4, strides=(2,2), padding='valid', activation='relu'), name="conv11" )(input_rgb)
-pool11 = TimeDistributed( MaxPooling2D(pool_size=(2, 2)), name="pool11" )(conv11)
-conv12 = TimeDistributed( Conv2D(32, kernel_size=4, strides=(2,2), padding='valid', activation='relu'), name="conv12" )(pool11)
-pool12 = TimeDistributed( MaxPooling2D(pool_size=(2, 2)), name="pool12" )(conv12)
-flat1 = TimeDistributed( Flatten(), name="flat1" )(pool12)
+conv11 = Conv2D(16, kernel_size=4, strides=(2,2), padding='valid', activation='relu', name="conv11" ) (input_rgb)
+pool11 = MaxPooling2D(pool_size=(2, 2), name="pool11" ) (conv11)
+conv12 = Conv2D(32, kernel_size=4, strides=(2,2), padding='valid', activation='relu', name="conv12" ) (pool11)
+pool12 = MaxPooling2D(pool_size=(2, 2), name="pool12" ) (conv12)
+flat1 = Flatten( name="flat1" ) (pool12)
 
 # second input model
-input_stft = Input(shape=(time_window, 25, 41, 2))
+input_stft = Input(shape=(25, 41, 2))
 '''
     conv21a = Conv2D(16, kernel_size=3, padding='same', name="conv21a")(input_stft)
     conv21a = Activation('relu')(conv21a)
@@ -121,19 +121,19 @@ input_stft = Input(shape=(time_window, 25, 41, 2))
     pool23 = MaxPooling2D(pool_size=(2, 2), name="pool23")(conv23b_d)
 '''
 
-conv21 = TimeDistributed( Conv2D(16, kernel_size=4, activation='relu'), name="conv21" )(input_stft)
-pool21 = TimeDistributed( MaxPooling2D(pool_size=(2, 2)), name="pool21" )(conv21)
-conv22 = TimeDistributed( Conv2D(32, kernel_size=4, activation='relu'), name="conv22" )(pool21)
-pool22 = TimeDistributed( MaxPooling2D(pool_size=(2, 2)), name="pool22" )(conv22)
-flat2 = TimeDistributed( Flatten(), name="flat2" )(pool22)
+conv21 = Conv2D(16, kernel_size=4, activation='relu', name="conv21" )(input_stft)
+pool21 = MaxPooling2D(pool_size=(2, 2), name="pool21" )(conv21)
+conv22 = Conv2D(32, kernel_size=4, activation='relu', name="conv22" )(pool21)
+pool22 = MaxPooling2D(pool_size=(2, 2), name="pool22" )(conv22)
+flat2 = Flatten( name="flat2" )(pool22)
 
 # merge input models
 merge = concatenate([flat1, flat2])
 
-lstm1 = LSTM(32, return_sequences=True)(merge)
-flatten_lstm = Flatten() (lstm1)
+# lstm1 = LSTM(32, return_sequences=True)(merge)
+# flatten_lstm = Flatten() (lstm1)
 
-hidden1 = Dense(16, activation='relu') (flatten_lstm)
+hidden1 = Dense(16, activation='relu') (merge)
 hidden2 = Dense(16, activation='relu') (hidden1)
 output = Dense(2, activation='softmax') (hidden2)
 
@@ -153,14 +153,14 @@ print(model.evaluate_generator(test_generator, steps=100))
 
 plot_model(model, to_file='model.png')
 
-Plot training & validation accuracy values
+# Plot training & validation accuracy values
 plt.plot(history.history['acc'])
 plt.plot(history.history['val_acc'])
 plt.title('Model accuracy')
 plt.ylabel('Accuracy')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
-plt.savefig("accuracy.png")
+plt.savefig("accuracy_nolstm.png")
 
 # Plot training & validation loss values
 plt.plot(history.history['loss'])
@@ -169,6 +169,6 @@ plt.title('Model loss')
 plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
-plt.savefig("loss.png")
+plt.savefig("loss_nolstm.png")
 
 # model.save('final_model')
