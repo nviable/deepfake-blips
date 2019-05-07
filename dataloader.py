@@ -38,8 +38,8 @@ class BlipDatasetLoader:
                 batch_Y.append(Y)
             
             # print('spitting out: {} | {} | {}'.format(np.shape(batch_Xv), np.shape(batch_Xa), np.shape(batch_Y)))
-            # yield [np.array(batch_Xv), np.array(batch_Xa)], np.array(batch_Y)
-            yield np.array(batch_Xv), np.array(batch_Y)
+            yield [np.array(batch_Xv), np.array(batch_Xa)], np.array(batch_Y)
+            # yield np.array(batch_Xv), np.array(batch_Y)
             # yield ({'vid': np.array(batch_Xv), 'aud': np.array(batch_Xa)}, np.array(batch_Y))
             # batch Xv(batch_size, frames, 384, 512, 3)
             # batch Xa(batch_size, frames, 1025, 2)
@@ -53,11 +53,12 @@ class BlipDatasetLoader:
             # print('Opened ', f_name)
             for s in p:
                 # yield (np.array(s[0]), np.reshape(s[1], (25, 41, 2)), np.array(s[2]))
+                # yield (np.array(s[0]), np.array(s[2]))
                 Xv_b.append(s[0])
                 Xa_b.append(np.reshape(s[1], (25, 41, 2)))
                 Y.append(s[2])
                 if(len(Y) == self.frames):
-                    yield (np.array(Xv_b), np.array(Xa_b), np.array(Y))
+                    yield (np.array(Xv_b), np.array(Xa_b), np.array([0,1] if Y else [1,0]))
                     Xa_b, Xv_b, Y = [],[],[]
 
 
