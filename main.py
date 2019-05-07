@@ -153,7 +153,7 @@ print(model.evaluate_generator(test_generator, steps=100))
 
 plot_model(model, to_file='model.png')
 
-Plot training & validation accuracy values
+# Plot training & validation accuracy values
 plt.plot(history.history['acc'])
 plt.plot(history.history['val_acc'])
 plt.title('Model accuracy')
